@@ -1,0 +1,59 @@
+[project]
+name = "geomind"
+version = "0.1.0"
+description = "AI-powered geospatial intelligence — Location Intelligence API"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+authors = [{ name = "Varun Gore" }]
+keywords = ["geospatial", "gis", "fastapi", "postgis", "location-intelligence"]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Framework :: FastAPI",
+]
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "sqlalchemy[asyncio]>=2.0",
+    "asyncpg>=0.29",
+    "geoalchemy2>=0.15",
+    "shapely>=2.0",
+    "httpx>=0.27",
+    "alembic>=1.13",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=5.0",
+    "respx>=0.21",
+    "ruff>=0.5",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/geomind"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+markers = [
+    "integration: requires a running PostGIS database (set GEOMIND_TEST_DATABASE_URL)",
+]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["B008"]  # FastAPI Depends() in defaults is idiomatic

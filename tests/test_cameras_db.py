@@ -9,8 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.pool import StaticPool
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
-from src.geomind.cameras.database import CameraDatabase
-from src.geomind.cameras.models import Base, FrameMetadata
+from geomind.cameras.database import CameraDatabase
+from geomind.cameras.models import Base, FrameMetadata
 
 
 @pytest.fixture

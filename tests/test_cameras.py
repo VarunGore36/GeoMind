@@ -7,9 +7,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.geomind.cameras.config import CameraFeedConfig, CameraPipelineConfig, StorageConfig
-from src.geomind.cameras.fetcher import CameraFetcher, FetchResult
-from src.geomind.cameras.storage import FrameStorage
+from geomind.cameras.config import CameraFeedConfig, CameraPipelineConfig, StorageConfig
+from geomind.cameras.fetcher import CameraFetcher, FetchResult
+from geomind.cameras.storage import FrameStorage
 
 
 class TestCameraConfig:
@@ -72,7 +72,7 @@ class TestFrameStorage:
 class TestCameraFetcher:
     @pytest.fixture
     def fetcher(self):
-        with patch("src.geomind.cameras.fetcher.httpx.AsyncClient") as mock:
+        with patch("geomind.cameras.fetcher.httpx.AsyncClient") as mock:
             mock_client = AsyncMock()
             mock.return_value = mock_client
             feed = CameraFeedConfig(feed_url="https://example.com/cam.jpg", camera_id="test")
@@ -115,7 +115,7 @@ class TestCameraFetcher:
         mock_resp.content = b"fake"
         mock.get.return_value = mock_resp
 
-        with patch("src.geomind.cameras.fetcher.storage") as mock_store:
+        with patch("geomind.cameras.fetcher.storage") as mock_store:
             mock_store._compute_phash.return_value = "phash"
             mock_store.is_duplicate.return_value = True
 

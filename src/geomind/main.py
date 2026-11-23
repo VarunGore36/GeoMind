@@ -11,6 +11,8 @@ from fastapi.responses import JSONResponse
 
 from . import __version__
 from .api.routes import health, location
+from .cameras.api import router as camera_router
+from .cameras.scheduler import scheduler as camera_scheduler
 from .core.config import get_settings
 from .core.errors import GeoMindError
 from .core.logging import configure_logging
@@ -23,6 +25,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
     configure_logging(settings.log_level)
 
+    # Start camera scheduler
+    await camera_scheduler.start()
+
     # One shared HTTP client for all outbound provider calls.
     async with httpx.AsyncClient(
         timeout=settings.http_timeout_s,
@@ -32,6 +37,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.osm_provider = OverpassProvider(client, settings)
         app.state.elevation_provider = OpenTopoDataProvider(client, settings)
         yield
+
+    # Shutdown camera scheduler
+    await camera_scheduler.stop()
 
 
 def create_app() -> FastAPI:
@@ -49,6 +57,7 @@ def create_app() -> FastAPI:
 
     app.include_router(health.router)
     app.include_router(location.router)
+    app.include_router(camera_router, prefix="/api/v1")
 
     @app.exception_handler(GeoMindError)
     async def _geomind_error_handler(_: Request, exc: GeoMindError) -> JSONResponse:

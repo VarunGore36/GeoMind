@@ -1,0 +1,20 @@
+feeds:
+  - feed_url: "https://images.webcams.travel/api/cam/1471069946/image.jpg"
+    camera_id: "nyc_times_square"
+    fetch_interval_seconds: 30
+    timeout_seconds: 10
+    max_retries: 3
+    retry_delay_seconds: 5
+
+storage:
+  path: "./frames"
+  max_frames_per_camera: 1000
+  deduplicate: true
+  similarity_threshold: 0.95
+
+database:
+  url: "postgresql+asyncpg://geomind:geomind@localhost:5432/geomind"
+
+redis:
+  url: "redis://localhost:6379/0"
+  enabled: false

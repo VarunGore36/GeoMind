@@ -10,13 +10,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # Install the package and its runtime dependencies first for better layer caching.
-COPY pyproject.toml README.md LICENSE ./
+COPY pyproject.toml README.md LICENSE requirements.txt ./
 COPY src ./src
 RUN pip install .
 
 # Runtime assets needed to migrate/start the app.
 COPY alembic.ini ./
 COPY alembic ./alembic
+COPY cameras.yaml ./
 
 EXPOSE 8000
 

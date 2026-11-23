@@ -1,0 +1,1 @@
+"""Camera pipeline module for GeoMind."""

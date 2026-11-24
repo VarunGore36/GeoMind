@@ -46,6 +46,8 @@ class VisionEngine:
         self._running = False
         self._frame_queue: asyncio.Queue | None = None
         self._worker_tasks: list[asyncio.Task] = []
+        self._consumer_task: asyncio.Task | None = None
+        self._last_processed_frame: dict[str, int] = {}  # camera_id -> frame_id
 
     async def start(self) -> None:
         """Initialize the engine."""
@@ -73,12 +75,91 @@ class VisionEngine:
             "Vision engine started with %d workers", queue_config.worker_count
         )
 
+    async def start_consumer(self, poll_interval: float = 1.0) -> None:
+        """Start the frame consumer that polls camera pipeline storage for new frames."""
+        if self._consumer_task is not None:
+            return
+
+        self._consumer_task = asyncio.create_task(self._consumer_loop(poll_interval))
+        logger.info("Vision engine frame consumer started")
+
+    async def stop_consumer(self) -> None:
+        """Stop the frame consumer."""
+        if self._consumer_task is None:
+            return
+        self._consumer_task.cancel()
+        try:
+            await self._consumer_task
+        except asyncio.CancelledError:
+            pass
+        self._consumer_task = None
+        logger.info("Vision engine frame consumer stopped")
+
+    async def _consumer_loop(self, poll_interval: float) -> None:
+        """Poll camera storage for new frames and submit for processing."""
+        from ..cameras.storage import storage as camera_storage
+        import cv2
+
+        logger.info("Starting frame consumer loop")
+
+        while self._running:
+            try:
+                config = get_vision_config()
+                for feed in config.feeds:
+                    camera_id = feed.camera_id
+                    last_frame_id = self._last_processed_frame.get(camera_id, 0)
+
+                    # Check for new frames
+                    frame_path = camera_storage.get_latest_frame_path(camera_id)
+                    if not frame_path:
+                        continue
+
+                    # Extract frame number from filename
+                    # Format: camera_id_YYYYMMDD_HHMMSS_mmm_NNNNNN.jpg
+                    try:
+                        frame_num_str = frame_path.stem.split('_')[-1]
+                        frame_id = int(frame_num_str)
+                    except (ValueError, IndexError):
+                        logger.warning("Could not parse frame ID from %s", frame_path)
+                        continue
+
+                    if frame_id <= last_frame_id:
+                        continue  # Already processed
+
+                    # Read and process frame
+                    image = cv2.imread(str(frame_path))
+                    if image is None:
+                        logger.warning("Failed to read frame %s", frame_path)
+                        continue
+
+                    self._last_processed_frame[camera_id] = frame_id
+
+                    # Submit for async processing
+                    await self.submit_frame(
+                        camera_id=camera_id,
+                        frame_id=frame_id,
+                        image=image,
+                    )
+                    logger.debug("Submitted frame %d for camera %s", frame_id, camera_id)
+
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.exception("Error in consumer loop: %s", e)
+
+            await asyncio.sleep(poll_interval)
+
+        logger.debug("Frame consumer loop stopped")
+
     async def stop(self) -> None:
         """Stop the engine."""
         if not self._running:
             return
 
         self._running = False
+
+        # Stop consumer
+        await self.stop_consumer()
 
         # Cancel workers
         for task in self._worker_tasks:

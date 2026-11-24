@@ -11,6 +11,17 @@ from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+class CameraFeedConfig(BaseModel):
+    """Configuration for a camera feed."""
+
+    feed_url: str
+    camera_id: str
+    fetch_interval_seconds: int = 30
+    timeout_seconds: int = 10
+    max_retries: int = 3
+    retry_delay_seconds: int = 5
+
+
 class ModelConfig(BaseModel):
     """Configuration for the detection model."""
 
@@ -81,6 +92,7 @@ class VisionEngineConfig(BaseModel):
     queue: QueueConfig = QueueConfig()
     enabled: bool = True
     log_level: str = "INFO"
+    feeds: list[CameraFeedConfig] = Field(default_factory=list)
 
 
 @lru_cache

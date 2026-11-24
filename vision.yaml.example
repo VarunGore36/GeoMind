@@ -1,0 +1,30 @@
+# Vision Engine Configuration
+# Copy to vision.yaml and modify as needed
+
+model:
+  type: "dummy"  # Options: "dummy", "yolo"
+  weights_path: "./models/yolov8n.pt"
+  device: "cpu"  # cpu, cuda, mps
+  confidence_threshold: 0.25
+  iou_threshold: 0.45
+  input_size: 640
+  classes: []  # Empty = all classes. For custom models: [0, 1] for smoke/fire
+  half_precision: false
+
+temporal:
+  min_consecutive_frames: 3
+  frame_confidence_threshold: 0.3
+  max_frame_gap_seconds: 60.0
+  min_confidence_sum: 1.0
+
+database:
+  url: "sqlite+aiosqlite:///./vision_detections.db"
+
+queue:
+  max_size: 1000
+  worker_count: 2
+  batch_size: 1
+  batch_timeout_ms: 100
+
+enabled: true
+log_level: "INFO"

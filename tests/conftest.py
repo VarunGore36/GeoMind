@@ -7,9 +7,11 @@ from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.pool import StaticPool
 
 from geomind.db import models  # noqa: F401  (register tables on Base.metadata)
 from geomind.db.base import Base
+from geomind.vision.models import Base as VisionBase
 from geomind.schemas.location import (
     BoundingBox,
     BuildingDensity,
@@ -114,5 +116,31 @@ async def db_session():
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
     async with session_factory() as session:
         yield session
+
+    await engine.dispose()
+
+
+@pytest.fixture
+async def vision_db():
+    """Yield a vision database instance with in-memory SQLite."""
+    from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+    from sqlalchemy.pool import StaticPool
+    from geomind.vision.database import VisionDatabase
+    from geomind.vision.models import Base as VisionBase
+
+    engine = create_async_engine(
+        "sqlite+aiosqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    async with engine.begin() as conn:
+        await conn.run_sync(VisionBase.metadata.create_all)
+
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    db = VisionDatabase()
+    db.engine = engine
+    db.session_factory = session_factory
+
+    yield db
 
     await engine.dispose()

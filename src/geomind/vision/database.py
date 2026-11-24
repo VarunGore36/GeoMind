@@ -231,5 +231,22 @@ class VisionDatabase:
             )
             return list(result.scalars().all())
 
+    async def update_frame_detection_event_id(
+        self, frame_record_id: int, event_id: str
+    ) -> Optional[FrameDetectionRecord]:
+        """Update a frame detection record with an event ID."""
+        async with self.session() as session:
+            result = await session.execute(
+                select(FrameDetectionRecord).where(
+                    FrameDetectionRecord.id == frame_record_id
+                )
+            )
+            record = result.scalar_one_or_none()
+            if not record:
+                return None
+            record.event_id = event_id
+            await session.flush()
+            return record
+
 
 vision_db = VisionDatabase()

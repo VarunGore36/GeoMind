@@ -77,11 +77,15 @@ class TemporalValidator:
 
             if key in self._pending:
                 pending = self._pending[key]
-                # Check if frame is consecutive (within max gap)
+                # Check if frame is within acceptable gap (time and frame ID)
                 time_gap = (current_time - pending.last_timestamp).total_seconds()
                 frame_gap = frame_detections.frame_id - pending.last_frame_id
 
-                if time_gap <= self.temporal_config.max_frame_gap_seconds and frame_gap <= 1:
+                # Allow frame gaps up to max_frame_gap_frames (default 5)
+                # to handle dropped frames from camera pipeline
+                max_frame_gap = getattr(self.temporal_config, 'max_frame_gap_frames', 5)
+
+                if time_gap <= self.temporal_config.max_frame_gap_seconds and frame_gap <= max_frame_gap:
                     # Consecutive frame - update pending event
                     pending.last_frame_id = frame_detections.frame_id
                     pending.last_timestamp = current_time

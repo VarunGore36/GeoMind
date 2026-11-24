@@ -41,6 +41,9 @@ class TemporalValidationConfig(BaseModel):
     frame_confidence_threshold: float = Field(default=0.3, ge=0.0, le=1.0)
     # Maximum time gap between frames (seconds) to consider consecutive
     max_frame_gap_seconds: float = Field(default=60.0, gt=0)
+    # Maximum frame ID gap between frames to consider consecutive
+    # (handles dropped frames from camera pipeline)
+    max_frame_gap_frames: int = Field(default=5, ge=1)
     # Minimum total confidence sum across consecutive frames
     min_confidence_sum: float = Field(default=1.0, ge=0.0)
 

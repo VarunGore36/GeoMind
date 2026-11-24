@@ -207,9 +207,9 @@ class VisionEngine:
         logger.debug("Vision worker %s stopped", name)
 
     async def _save_event(self, event, frame_record: FrameDetectionRecord) -> None:
-        """Save a detection event to database."""
+        """Save a detection event to database and link frame record."""
         if event.status.value == "confirmed":
-            # Update the frame record with event ID
+            # Update the detection event with final details
             await vision_db.update_detection_event(
                 event_id=event.event_id,
                 last_frame_id=event.last_frame_id,
@@ -220,19 +220,8 @@ class VisionEngine:
                 status=event.status,
                 bbox=event.bbox.model_dump() if event.bbox else None,
             )
-
-            # Link frame record to event
-            await vision_db.save_frame_detections(
-                camera_id=frame_record.camera_id,
-                frame_id=frame_record.frame_id,
-                timestamp=frame_record.timestamp,
-                detections=[],  # Already saved
-                inference_time_ms=frame_record.inference_time_ms,
-                model_version=frame_record.model_version,
-                event_id=event.event_id,
-            )
         elif event.status.value == "rejected":
-            # Still save the rejected event for audit
+            # Save the rejected event for audit
             await vision_db.save_detection_event(
                 event_id=event.event_id,
                 camera_id=event.camera_id,
@@ -247,6 +236,12 @@ class VisionEngine:
                 status=event.status,
                 bbox=event.bbox.model_dump() if event.bbox else None,
             )
+
+        # Update the frame record with event_id (for both confirmed and rejected)
+        await vision_db.update_frame_detection_event_id(
+            frame_record_id=frame_record.id,
+            event_id=event.event_id,
+        )
 
     def get_stats(self) -> dict:
         """Get engine statistics."""

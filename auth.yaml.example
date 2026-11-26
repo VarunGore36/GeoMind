@@ -1,0 +1,29 @@
+# Authentication Configuration
+# Copy to auth.yaml and modify as needed
+
+jwt:
+  secret_key: "your-super-secret-key-at-least-32-characters-long"
+  algorithm: "HS256"
+  access_token_expire_minutes: 30
+  refresh_token_expire_days: 7
+  issuer: "geomind"
+  audience: "geomind-api"
+
+api_key:
+  header_name: "X-API-Key"
+  query_param: "api_key"
+  key_length: 32
+  prefix: "gm_"
+
+enabled: true
+
+public_paths:
+  - "/"
+  - "/health"
+  - "/health/ready"
+  - "/docs"
+  - "/openapi.json"
+  - "/redoc"
+  - "/api/v1/cameras/health"
+  - "/api/v1/location-intelligence"
+  - "/api/v1/detections/health"

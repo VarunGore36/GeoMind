@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 
 from . import __version__
 from .api.routes import health, location
+from .auth import auth_router
 from .cameras.api import router as camera_router
 from .cameras.scheduler import scheduler as camera_scheduler
 from .core.config import get_settings
@@ -50,7 +51,8 @@ def create_app() -> FastAPI:
         description=(
             "GeoMind turns open geospatial data into structured location "
             "intelligence: building density, road density, vegetation coverage, "
-            "water proximity, and elevation — with full data provenance."
+            "water proximity, elevation, and wildfire detection — "
+            "with full data provenance and authentication."
         ),
         lifespan=lifespan,
     )
@@ -58,6 +60,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(location.router)
     app.include_router(camera_router, prefix="/api/v1")
+    app.include_router(auth_router, prefix="/api/v1")
 
     @app.exception_handler(GeoMindError)
     async def _geomind_error_handler(_: Request, exc: GeoMindError) -> JSONResponse:

@@ -14,9 +14,10 @@ from .api.routes import health, location
 from .auth import auth_router
 from .cameras.api import router as camera_router
 from .cameras.scheduler import scheduler as camera_scheduler
-from .core.config import get_settings
+from .core import get_settings
 from .core.errors import GeoMindError
 from .core.logging import configure_logging
+from .core.rate_limit import get_rate_limiter, RateLimitMiddleware
 from .metrics import metrics_collector
 from .providers.elevation import OpenTopoDataProvider
 from .providers.overpass import OverpassProvider
@@ -31,6 +32,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     # Initialize metrics
     metrics_collector.initialize()
+
+    # Initialize rate limiter
+    get_rate_limiter()
 
     # Start camera scheduler
     await camera_scheduler.start()
@@ -76,6 +80,9 @@ def create_app() -> FastAPI:
         ),
         lifespan=lifespan,
     )
+
+    # Add rate limiting middleware
+    app.add_middleware(RateLimitMiddleware)
 
     app.include_router(health.router)
     app.include_router(location.router)

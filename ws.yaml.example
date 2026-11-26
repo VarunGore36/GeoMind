@@ -1,0 +1,37 @@
+# WebSocket Configuration
+# Copy to ws.yaml and modify as needed
+
+ws:
+  max_connections: 1000
+  max_connections_per_client: 10
+  heartbeat_interval_seconds: 30
+  connection_timeout_seconds: 300
+  max_message_size_bytes: 1048576
+  max_queue_size: 1000
+  ping_interval_seconds: 20
+  ping_timeout_seconds: 10
+  redis_url: "redis://localhost:6379/0"
+  redis_enabled: false
+  channel_prefix: "geomind:ws"
+  supported_message_types:
+    - "subscribe"
+    - "unsubscribe"
+    - "detection"
+    - "heartbeat"
+    - "ack"
+    - "error"
+
+auth:
+  token_query_param: "token"
+  token_header_name: "Authorization"
+  token_prefix: "Bearer "
+  allow_anonymous: false
+  required_roles:
+    "detections:*": ["viewer", "user", "admin", "service"]
+    "cameras:*": ["viewer", "user", "admin", "service"]
+    "detections:confirmed:*": ["user", "admin", "service"]
+    "detections:pending:*": ["admin", "service"]
+    "system:*": ["admin", "service"]
+
+enabled: true
+log_level: "INFO"

@@ -26,7 +26,7 @@ class ModelConfig(BaseModel):
     """Configuration for the detection model."""
 
     # Model type - can be extended for different models
-    type: Literal["yolo", "custom", "dummy", "onnx", "onnxruntime"] = "dummy"
+    type: Literal["yolo", "custom", "dummy", "onnx", "onnxruntime", "wildfire"] = "dummy"
     # Path to model weights or model identifier
     weights_path: str = "./models/yolov8n.pt"
     # Device to run inference on (cpu, cuda, mps)

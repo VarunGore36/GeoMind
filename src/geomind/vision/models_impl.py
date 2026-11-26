@@ -236,6 +236,9 @@ class YOLOModel(BaseModelInterface):
 
     def _get_class_name(self, class_id: int) -> str:
         """Map YOLO class ID to name. Override for custom models."""
+        # Use model's class names if available
+        if self.class_names and 0 <= class_id < len(self.class_names):
+            return self.class_names[class_id]
         # COCO class names - in practice, use model.names
         coco_names = {
             0: "person", 1: "bicycle", 2: "car", 3: "motorcycle",
@@ -243,7 +246,49 @@ class YOLOModel(BaseModelInterface):
             8: "boat", 9: "traffic light", 10: "fire hydrant",
         }
         # For wildfire detection, we'd use a custom model with classes like "smoke", "fire"
-        return f"class_{class_id}"
+        return coco_names.get(class_id, f"class_{class_id}")
+
+
+class WildfireYOLOModel(YOLOModel):
+    """
+    YOLO model specialized for wildfire smoke and fire detection.
+
+    Uses custom class mapping for smoke (0) and fire (1) detection.
+    Compatible with custom-trained YOLO models for wildfire detection.
+    """
+
+    # Wildfire-specific class names
+    WILDFIRE_CLASSES = ["smoke", "fire"]
+
+    def __init__(
+        self,
+        weights_path: str = "wildfire_yolov8n.pt",
+        device: str = "cpu",
+        confidence_threshold: float = 0.25,
+        iou_threshold: float = 0.45,
+        input_size: int = 640,
+        half_precision: bool = False,
+        classes: list[int] | None = None,
+        **kwargs,
+    ):
+        # Default to wildfire classes (0=smoke, 1=fire)
+        super().__init__(
+            weights_path=weights_path,
+            device=device,
+            confidence_threshold=confidence_threshold,
+            iou_threshold=iou_threshold,
+            input_size=input_size,
+            half_precision=half_precision,
+            classes=classes or [0, 1],
+            class_names=self.WILDFIRE_CLASSES,
+            **kwargs,
+        )
+
+    def _get_class_name(self, class_id: int) -> str:
+        """Map wildfire class ID to name."""
+        if 0 <= class_id < len(self.WILDFIRE_CLASSES):
+            return self.WILDFIRE_CLASSES[class_id]
+        return super()._get_class_name(class_id)
 
 
 class ONNXModel(BaseModelInterface):
@@ -527,6 +572,17 @@ def create_model(model_config) -> BaseModelInterface:
         )
     elif model_type in ("yolo", "ultralytics"):
         return YOLOModel(
+            weights_path=model_config.weights_path,
+            device=model_config.device,
+            confidence_threshold=model_config.confidence_threshold,
+            iou_threshold=model_config.iou_threshold,
+            input_size=model_config.input_size,
+            half_precision=model_config.half_precision,
+            classes=model_config.classes,
+            class_names=getattr(model_config, 'class_names', None),
+        )
+    elif model_type == "wildfire":
+        return WildfireYOLOModel(
             weights_path=model_config.weights_path,
             device=model_config.device,
             confidence_threshold=model_config.confidence_threshold,

@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
 import httpx
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 
 from . import __version__
@@ -17,6 +17,7 @@ from .cameras.scheduler import scheduler as camera_scheduler
 from .core.config import get_settings
 from .core.errors import GeoMindError
 from .core.logging import configure_logging
+from .metrics import metrics_collector
 from .providers.elevation import OpenTopoDataProvider
 from .providers.overpass import OverpassProvider
 from .ws import ws_router, ws_info_router
@@ -28,10 +29,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
     configure_logging(settings.log_level)
 
+    # Initialize metrics
+    metrics_collector.initialize()
+
     # Start camera scheduler
     await camera_scheduler.start()
 
     # Start WebSocket connection manager
+    from .ws.config import get_ws_config
     ws_config = get_ws_config()
     if ws_config.enabled:
         await connection_manager.start()
@@ -53,6 +58,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     ws_config = get_ws_config()
     if ws_config.enabled:
         await connection_manager.stop()
+
+    # Cleanup metrics
+    # metrics_collector is long-lived, no explicit shutdown needed
 
 
 def create_app() -> FastAPI:
@@ -88,6 +96,25 @@ def create_app() -> FastAPI:
             "docs": "/docs",
             "openapi": "/openapi.json",
         }
+
+    @app.get("/metrics", tags=["metrics"], summary="Prometheus metrics")
+    async def metrics() -> Response:
+        metrics_data = metrics_collector.get_metrics_output()
+        return Response(content=metrics_data, media_type="text/plain; version=0.0.4; charset=utf-8")
+
+    @app.middleware("http")
+    async def metrics_middleware(request: Request, call_next):
+        import time
+        start = time.perf_counter()
+        response = await call_next(request)
+        duration = time.perf_counter() - start
+        metrics_collector.track_http_request(
+            method=request.method,
+            endpoint=request.url.path,
+            status=response.status_code,
+            duration=duration,
+        )
+        return response
 
     return app
 

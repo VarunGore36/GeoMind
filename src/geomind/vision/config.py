@@ -26,7 +26,7 @@ class ModelConfig(BaseModel):
     """Configuration for the detection model."""
 
     # Model type - can be extended for different models
-    type: Literal["yolo", "custom", "dummy"] = "dummy"
+    type: Literal["yolo", "custom", "dummy", "onnx", "onnxruntime"] = "dummy"
     # Path to model weights or model identifier
     weights_path: str = "./models/yolov8n.pt"
     # Device to run inference on (cpu, cuda, mps)
@@ -41,6 +41,8 @@ class ModelConfig(BaseModel):
     classes: list[int] = Field(default_factory=list)  # Empty = all classes
     # Half precision (FP16) for faster inference
     half_precision: bool = False
+    # Custom class names (for custom/ONNX models)
+    class_names: list[str] | None = None
 
 
 class TemporalValidationConfig(BaseModel):

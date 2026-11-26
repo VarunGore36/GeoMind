@@ -101,6 +101,7 @@ class YOLOModel(BaseModelInterface):
         input_size: int = 640,
         half_precision: bool = False,
         classes: list[int] | None = None,
+        class_names: list[str] | None = None,
         **kwargs,
     ):
         super().__init__(
@@ -114,6 +115,7 @@ class YOLOModel(BaseModelInterface):
             **kwargs,
         )
         self._yolo_model: Any = None
+        self.class_names = class_names or []
 
     def _load_model(self) -> Any:
         try:
@@ -127,15 +129,52 @@ class YOLOModel(BaseModelInterface):
         model.to(self.device)
         if self.half_precision and self.device != "cpu":
             model.half()
+        # Use model's class names if available
+        if hasattr(model, 'names') and model.names:
+            self.class_names = list(model.names.values())
         return model
+
+    def _preprocess(self, image: np.ndarray) -> np.ndarray:
+        """
+        Preprocess image with letterbox padding to maintain aspect ratio.
+
+        Returns:
+            Preprocessed image tensor (1, 3, H, W) normalized to [0, 1]
+        """
+        import cv2
+
+        h, w = image.shape[:2]
+        scale = min(self.input_size / w, self.input_size / h)
+        new_w, new_h = int(w * scale), int(h * scale)
+
+        # Resize with aspect ratio preserved
+        resized = cv2.resize(image, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+
+        # Create letterboxed image
+        padded = np.full((self.input_size, self.input_size, 3), 114, dtype=np.uint8)
+        pad_top = (self.input_size - new_h) // 2
+        pad_left = (self.input_size - new_w) // 2
+        padded[pad_top:pad_top + new_h, pad_left:pad_left + new_w] = resized
+
+        # Store preprocessing info for postprocessing
+        self._preprocess_info = {
+            "scale": scale,
+            "pad_left": pad_left,
+            "pad_top": pad_top,
+            "original_w": w,
+            "original_h": h,
+        }
+
+        # Convert to tensor: HWC -> CHW, normalize to [0, 1]
+        tensor = padded.transpose(2, 0, 1).astype(np.float32) / 255.0
+        tensor = np.expand_dims(tensor, axis=0)  # Add batch dimension
+
+        return tensor
 
     def _run_inference(self, image: np.ndarray) -> list[Detection]:
         """Run YOLO inference and convert to Detection list."""
-        import cv2
-
-        # Preprocess
+        # Preprocess with letterbox
         processed = self._preprocess(image)
-        h, w = image.shape[:2]
 
         # Run inference
         results = self._model(
@@ -151,6 +190,7 @@ class YOLOModel(BaseModelInterface):
             if result.boxes is None:
                 continue
 
+            # Get boxes in normalized coordinates (from letterboxed image)
             boxes = result.boxes.xyxyn.cpu().numpy()  # Normalized xyxy
             confidences = result.boxes.conf.cpu().numpy()
             class_ids = result.boxes.cls.cpu().numpy().astype(int)
@@ -158,9 +198,26 @@ class YOLOModel(BaseModelInterface):
             for box, conf, cls_id in zip(boxes, confidences, class_ids):
                 x_min, y_min, x_max, y_max = box
 
-                # Scale back to original image coordinates (approximately)
-                # Since we used letterbox padding, we need to adjust
-                # For simplicity, we use the normalized coords directly
+                # Apply letterbox correction to get coordinates in original image space
+                info = getattr(self, "_preprocess_info", {})
+                scale = info.get("scale", 1.0)
+                pad_left = info.get("pad_left", 0)
+                pad_top = info.get("pad_top", 0)
+                orig_w = info.get("original_w", self.input_size)
+                orig_h = info.get("original_h", self.input_size)
+
+                # Convert from normalized letterbox coords to original image coords
+                x_min = (x_min * self.input_size - pad_left) / scale / orig_w
+                y_min = (y_min * self.input_size - pad_top) / scale / orig_h
+                x_max = (x_max * self.input_size - pad_left) / scale / orig_w
+                y_max = (y_max * self.input_size - pad_top) / scale / orig_h
+
+                # Clip to valid range
+                x_min = np.clip(x_min, 0.0, 1.0)
+                y_min = np.clip(y_min, 0.0, 1.0)
+                x_max = np.clip(x_max, 0.0, 1.0)
+                y_max = np.clip(y_max, 0.0, 1.0)
+
                 detections.append(
                     Detection(
                         class_id=int(cls_id),

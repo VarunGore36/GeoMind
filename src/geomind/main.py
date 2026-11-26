@@ -19,6 +19,8 @@ from .core.errors import GeoMindError
 from .core.logging import configure_logging
 from .providers.elevation import OpenTopoDataProvider
 from .providers.overpass import OverpassProvider
+from .ws import ws_router, ws_info_router
+from .ws.manager import connection_manager
 
 
 @asynccontextmanager
@@ -28,6 +30,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     # Start camera scheduler
     await camera_scheduler.start()
+
+    # Start WebSocket connection manager
+    ws_config = get_ws_config()
+    if ws_config.enabled:
+        await connection_manager.start()
 
     # One shared HTTP client for all outbound provider calls.
     async with httpx.AsyncClient(
@@ -42,6 +49,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Shutdown camera scheduler
     await camera_scheduler.stop()
 
+    # Stop WebSocket connection manager
+    ws_config = get_ws_config()
+    if ws_config.enabled:
+        await connection_manager.stop()
+
 
 def create_app() -> FastAPI:
     settings = get_settings()
@@ -52,7 +64,7 @@ def create_app() -> FastAPI:
             "GeoMind turns open geospatial data into structured location "
             "intelligence: building density, road density, vegetation coverage, "
             "water proximity, elevation, and wildfire detection — "
-            "with full data provenance and authentication."
+            "with full data provenance, authentication, and real-time streaming."
         ),
         lifespan=lifespan,
     )
@@ -61,6 +73,8 @@ def create_app() -> FastAPI:
     app.include_router(location.router)
     app.include_router(camera_router, prefix="/api/v1")
     app.include_router(auth_router, prefix="/api/v1")
+    app.include_router(ws_router, prefix="/api/v1")
+    app.include_router(ws_info_router, prefix="/api/v1")
 
     @app.exception_handler(GeoMindError)
     async def _geomind_error_handler(_: Request, exc: GeoMindError) -> JSONResponse:

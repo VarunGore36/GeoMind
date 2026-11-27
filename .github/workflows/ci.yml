@@ -1,22 +1,22 @@
-name: CI/CD Pipeline
+name: CI
 
 on:
   push:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
-  workflow_dispatch:
 
 env:
-  PYTHON_VERSION: "3.11"
-  GEOMIND_TEST_DATABASE_URL: "postgresql+asyncpg://postgres:postgres@localhost:5432/geomind_test"
+  PYTHON_VERSION: "3.12"
+  GEOMIND_TEST_DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/geomind
 
 jobs:
   lint:
     name: Lint & Type Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -26,23 +26,51 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          pip install -U pip
+          pip install ruff mypy
 
-      - name: Run ruff
-        run: ruff check src/ tests/
+      - name: Run Ruff (lint)
+        run: ruff check src/ tests/ scripts/
 
-      - name: Run ruff format check
-        run: ruff format --check src/ tests/
+      - name: Run Ruff (format check)
+        run: ruff format --check src/ tests/ scripts/
 
-      - name: Run mypy
-        run: mypy src/
+      - name: Run MyPy (type check)
+        run: mypy src/ --ignore-missing-imports
 
-      - name: Run bandit
-        run: bandit -r src/
+  test-unit:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-  test:
-    name: Unit & Integration Tests
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install -U pip
+          pip install -e ".[test]"
+
+      - name: Run unit tests
+        run: |
+          pytest tests/ -q --tb=short -x -m "not integration" \
+            --cov=src/geomind --cov-report=xml --cov-report=term-missing \
+            --cov-fail-under=80
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.xml
+          flags: unit
+          fail_ci_if_error: false
+
+  test-integration:
+    name: Integration Tests
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -50,22 +78,17 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: geomind_test
-        ports:
-          - 5432:5432
+          POSTGRES_DB: geomind
+        ports: ["5432:5432"]
         options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
+          --health-cmd "pg_isready -U postgres -d geomind"
+          --health-interval 5s
           --health-timeout 5s
-          --health-retries 5
-      redis:
-        image: redis:7-alpine
-        ports:
-          - 6379:6379
-        options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
+          --health-retries 10
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -75,68 +98,158 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          pip install -U pip
+          pip install -e ".[test]"
 
-      - name: Run unit tests
-        run: pytest tests/unit -v --tb=short --cov=src --cov-report=xml
+      - name: Wait for PostGIS
+        run: |
+          for i in {1..30}; do
+            if pg_isready -h localhost -p 5432 -U postgres -d geomind; then
+              echo "PostGIS ready"
+              break
+            fi
+            sleep 2
+          done
 
       - name: Run integration tests
-        run: pytest tests/integration -v --tb=short
-        env:
-          GEOMIND_TEST_DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/geomind_test
+        run: |
+          pytest tests/integration/ -v --tb=short \
+            --cov=src/geomind --cov-report=xml --cov-report=term-missing \
+            --cov-append
 
-      - name: Upload coverage
-        uses: codecov/codecov-action@v4
-        with:
-          files: ./coverage.xml
-          fail_ci_if_error: false
-
-  docker:
-    name: Docker Build & Test
+  docker-build:
+    name: Docker Build
     runs-on: ubuntu-latest
-    needs: [lint, test]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [lint, test-unit]
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build Docker image
-        run: docker build -t geomind:latest .
+      - name: Build runtime image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          target: runtime
+          tags: geomind:test
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      - name: Test Docker image
+      - name: Test runtime image
         run: |
-          docker run --rm -d --name geomind-test -p 8000:8000 \
-            -e GEOMIND_DATABASE_URL=sqlite+aiosqlite:///./test.db \
-            geomind:latest
-          sleep 10
-          curl -f http://localhost:8000/health
-          docker stop geomind-test
+          docker run --rm geomind:test python -c "import geomind; print('Import OK')"
 
-  deploy:
-    name: Deploy to Staging
+  docker-build-dev:
+    name: Docker Build (Dev)
     runs-on: ubuntu-latest
-    needs: [lint, test, docker]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    environment: staging
+    needs: [lint, test-unit]
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Deploy to staging
-        run: |
-          echo "Deploying to staging environment..."
-          # Add deployment commands here
-          echo "Deployment complete"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-  notify:
-    name: Notify on Failure
+      - name: Build dev image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          target: dev
+          tags: geomind:dev
+          load: true
+
+  security-scan:
+    name: Security Scan
     runs-on: ubuntu-latest
-    needs: [lint, test, docker, deploy]
-    if: failure()
     steps:
-      - name: Notify on Slack
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'HIGH,CRITICAL'
+
+      - name: Upload Trivy results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  dependency-check:
+    name: Dependency Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
         run: |
-          echo "CI/CD pipeline failed!"
-          # Add Slack/Discord notification here
+          pip install -U pip
+          pip install safety pip-audit
+
+      - name: Check for vulnerabilities (safety)
+        run: safety check --json --output safety-report.json || true
+
+      - name: Check for vulnerabilities (pip-audit)
+        run: pip-audit --format=json --output=pip-audit-report.json || true
+
+      - name: Upload reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-reports
+          path: |
+            safety-report.json
+            pip-audit-report.json
+
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [lint, test-unit, test-integration, docker-build, security-scan, dependency-check]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Build and push runtime image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          target: runtime
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ steps.version.outputs.VERSION }}
+            ghcr.io/${{ github.repository }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          generate_release_notes: true

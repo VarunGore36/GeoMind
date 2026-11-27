@@ -1,0 +1,212 @@
+# Prometheus Recording Rules for GeoMind
+#
+# Pre-computed metrics for faster queries and dashboards
+
+groups:
+  - name: geomind.recording.rules
+    interval: 30s
+    rules:
+
+      # ============================================================
+      # API Recording Rules
+      # ============================================================
+      - record: geomind:api:request_rate:5m
+        expr: sum(rate(geomind_http_requests_total[5m])) by (handler, method, status)
+
+      - record: geomind:api:error_rate:5m
+        expr: |
+          sum(rate(geomind_http_requests_total{status=~"5.."}[5m])) by (handler)
+          /
+          sum(rate(geomind_http_requests_total[5m])) by (handler)
+
+      - record: geomind:api:latency_p50:5m
+        expr: |
+          histogram_quantile(0.50,
+            sum(rate(geomind_http_request_duration_seconds_bucket[5m])) by (le, handler)
+          )
+
+      - record: geomind:api:latency_p95:5m
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(geomind_http_request_duration_seconds_bucket[5m])) by (le, handler)
+          )
+
+      - record: geomind:api:latency_p99:5m
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(geomind_http_request_duration_seconds_bucket[5m])) by (le, handler)
+          )
+
+      # ============================================================
+      # Location Intelligence Recording Rules
+      # ============================================================
+      - record: geomind:location_intel:request_rate:5m
+        expr: sum(rate(geomind_location_intel_requests_total[5m]))
+
+      - record: geomind:location_intel:latency_p50:5m
+        expr: |
+          histogram_quantile(0.50,
+            sum(rate(geomind_location_intel_duration_seconds_bucket[5m])) by (le)
+          )
+
+      - record: geomind:location_intel:latency_p95:5m
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(geomind_location_intel_duration_seconds_bucket[5m])) by (le)
+          )
+
+      - record: geomind:location_intel:cache_hit_rate:5m
+        expr: |
+          sum(rate(geomind_location_intel_cache_hits_total[5m])) /
+          (sum(rate(geomind_location_intel_cache_hits_total[5m])) + sum(rate(geomind_location_intel_cache_misses_total[5m])))
+
+      - record: geomind:location_intel:overpass_latency_p95:5m
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(geomind_overpass_duration_seconds_bucket[5m])) by (le)
+          )
+
+      - record: geomind:location_intel:elevation_latency_p95:5m
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(geomind_elevation_duration_seconds_bucket[5m])) by (le)
+          )
+
+      # ============================================================
+      # Vision/Camera Recording Rules
+      # ============================================================
+      - record: geomind:vision:inference_rate:5m
+        expr: sum(rate(geomind_vision_inference_total[5m]))
+
+      - record: geomind:vision:inference_latency_p50:5m
+        expr: |
+          histogram_quantile(0.50,
+            sum(rate(geomind_vision_inference_duration_seconds_bucket[5m])) by (le)
+          )
+
+      - record: geomind:vision:inference_latency_p95:5m
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(geomind_vision_inference_duration_seconds_bucket[5m])) by (le)
+          )
+
+      - record: geomind:vision:detection_rate:5m
+        expr: sum(rate(geomind_detections_total[5m])) by (class_name, status)
+
+      - record: geomind:vision:confirmed_detection_rate:1h
+        expr: sum(rate(geomind_detections_total{status="confirmed"}[1h])) by (class_name)
+
+      - record: geomind:camera:fetch_rate:5m
+        expr: sum(rate(geomind_camera_fetch_total[5m])) by (camera_id, status)
+
+      - record: geomind:camera:fetch_latency_p95:5m
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(geomind_camera_fetch_duration_seconds_bucket[5m])) by (le, camera_id)
+          )
+
+      - record: geomind:camera:frames_per_hour:1h
+        expr: sum(rate(geomind_camera_frames_total[1h])) by (camera_id)
+
+      # ============================================================
+      # WebSocket Recording Rules
+      # ============================================================
+      - record: geomind:ws:connections_active
+        expr: geomind_ws_connections_active
+
+      - record: geomind:ws:messages_rate:5m
+        expr: sum(rate(geomind_ws_messages_total[5m])) by (direction, type)
+
+      - record: geomind:ws:broadcast_latency_p95:5m
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(geomind_ws_broadcast_duration_seconds_bucket[5m])) by (le)
+          )
+
+      - record: geomind:ws:subscriptions_active
+        expr: sum(geomind_ws_channel_subscribers) by (channel)
+
+      # ============================================================
+      # Database Recording Rules
+      # ============================================================
+      - record: geomind:db:query_rate:5m
+        expr: sum(rate(geomind_db_query_total[5m])) by (query, status)
+
+      - record: geomind:db:query_latency_p50:5m
+        expr: |
+          histogram_quantile(0.50,
+            sum(rate(geomind_db_query_duration_seconds_bucket[5m])) by (le, query)
+          )
+
+      - record: geomind:db:query_latency_p95:5m
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(geomind_db_query_duration_seconds_bucket[5m])) by (le, query)
+          )
+
+      - record: geomind:db:pool_usage_ratio
+        expr: geomind_db_pool_checked_out / geomind_db_pool_size
+
+      - record: geomind:db:connections_active
+        expr: geomind_db_pool_checked_out
+
+      # ============================================================
+      # Cache Recording Rules
+      # ============================================================
+      - record: geomind:cache:hit_rate:5m
+        expr: |
+          sum(rate(geomind_cache_hits_total[5m])) /
+          (sum(rate(geomind_cache_hits_total[5m])) + sum(rate(geomind_cache_misses_total[5m])))
+
+      - record: geomind:cache:operations_rate:5m
+        expr: sum(rate(geomind_cache_operations_total[5m])) by (operation, status)
+
+      - record: geomind:redis:memory_usage_ratio
+        expr: redis_memory_used_bytes / redis_memory_max_bytes
+
+      - record: geomind:redis:connected_clients
+        expr: redis_connected_clients
+
+      # ============================================================
+      # Authentication Recording Rules
+      # ============================================================
+      - record: geomind:auth:success_rate:5m
+        expr: |
+          sum(rate(geomind_auth_success_total[5m])) /
+          (sum(rate(geomind_auth_success_total[5m])) + sum(rate(geomind_auth_failures_total[5m])))
+
+      - record: geomind:auth:failure_rate_by_reason:5m
+        expr: sum(rate(geomind_auth_failures_total[5m])) by (reason)
+
+      - record: geomind:auth:active_sessions
+        expr: geomind_auth_active_sessions
+
+      - record: geomind:auth:api_keys_active
+        expr: geomind_auth_api_keys_active
+
+      # ============================================================
+      # Rate Limiting Recording Rules
+      # ============================================================
+      - record: geomind:rate_limit:exceeded_rate:5m
+        expr: sum(rate(geomind_rate_limit_exceeded_total[5m])) by (identifier_type)
+
+      - record: geomind:rate_limit:remaining_ratio
+        expr: geomind_rate_limit_remaining / geomind_rate_limit_limit
+
+      # ============================================================
+      # System Recording Rules
+      # ============================================================
+      - record: geomind:system:memory_usage_ratio
+        expr: container_memory_usage_bytes / container_spec_memory_limit_bytes
+
+      - record: geomind:system:cpu_usage_ratio
+        expr: rate(container_cpu_usage_seconds_total[5m]) / container_spec_cpu_quota / container_spec_cpu_period
+
+      - record: geomind:system:disk_usage_ratio
+        expr: container_fs_usage_bytes / container_fs_limit_bytes
+
+      - record: geomind:system:network_receive_bytes_rate:5m
+        expr: sum(rate(container_network_receive_bytes_total[5m])) by (interface)
+
+      - record: geomind:system:network_transmit_bytes_rate:5m
+        expr: sum(rate(container_network_transmit_bytes_total[5m])) by (interface)

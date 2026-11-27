@@ -1,0 +1,346 @@
+# Prometheus Alerting Rules for GeoMind
+#
+# Install with Prometheus Operator:
+#   kubectl apply -f monitoring/prometheus_alerts.yml
+#
+# Or include in prometheus.yml:
+#   rule_files:
+#     - "prometheus_alerts.yml"
+
+groups:
+  - name: geomind.rules
+    interval: 30s
+    rules:
+
+      # ============================================================
+      # API Availability Alerts
+      # ============================================================
+      - alert: GeomindAPIDown
+        expr: up{job="geomind-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: api
+        annotations:
+          summary: "GeoMind API is down"
+          description: "GeoMind API has been down for more than 1 minute"
+          runbook_url: "https://github.com/VarunGore36/GeoMind/blob/main/docs/runbooks/api-down.md"
+
+      - alert: GeomindAPIHighErrorRate
+        expr: |
+          sum(rate(geomind_http_requests_total{status=~"5.."}[5m])) by (job)
+          /
+          sum(rate(geomind_http_requests_total[5m])) by (job)
+          > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "High API error rate"
+          description: "API error rate (5xx) is above 5% for 5 minutes"
+          runbook_url: "https://github.com/VarunGore36/GeoMind/blob/main/docs/runbooks/high-error-rate.md"
+
+      - alert: GeomindAPIHighLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(geomind_http_request_duration_seconds_bucket[5m])) by (le, handler)
+          ) > 2.0
+        for: 5m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "High API latency (p95)"
+          description: "API p95 latency is above 2 seconds for 5 minutes"
+          runbook_url: "https://github.com/VarunGore36/GeoMind/blob/main/docs/runbooks/high-latency.md"
+
+      # ============================================================
+      # Database Alerts
+      # ============================================================
+      - alert: GeomindDatabaseDown
+        expr: up{job="postgresql"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: database
+        annotations:
+          summary: "PostgreSQL/PostGIS database is down"
+          description: "Database has been unreachable for more than 1 minute"
+
+      - alert: GeomindDatabaseConnectionPoolExhausted
+        expr: |
+          geomind_db_pool_checked_out / geomind_db_pool_size > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "Database connection pool near exhaustion"
+          description: "More than 90% of database connections are in use"
+
+      - alert: GeomindDatabaseSlowQueries
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(geomind_db_query_duration_seconds_bucket[5m])) by (le, query)
+          ) > 5.0
+        for: 5m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "Slow database queries"
+          description: "Database query p95 latency is above 5 seconds"
+
+      # ============================================================
+      # Cache/Redis Alerts
+      # ============================================================
+      - alert: GeomindRedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: cache
+        annotations:
+          summary: "Redis cache is down"
+          description: "Redis has been unreachable for more than 1 minute"
+
+      - alert: GeomindRedisMemoryHigh
+        expr: |
+          redis_memory_used_bytes / redis_memory_max_bytes > 0.85
+        for: 10m
+        labels:
+          severity: warning
+          component: cache
+        annotations:
+          summary: "Redis memory usage high"
+          description: "Redis memory usage is above 85% of maxmemory"
+
+      - alert: GeomindCacheHitRateLow
+        expr: |
+          sum(rate(geomind_cache_hits_total[5m])) /
+          (sum(rate(geomind_cache_hits_total[5m])) + sum(rate(geomind_cache_misses_total[5m])))
+          < 0.5
+        for: 15m
+        labels:
+          severity: info
+          component: cache
+        annotations:
+          summary: "Low cache hit rate"
+          description: "Cache hit rate is below 50% for 15 minutes"
+
+      # ============================================================
+      # Location Intelligence Alerts
+      # ============================================================
+      - alert: GeomindLocationIntelligenceHighLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(geomind_location_intel_duration_seconds_bucket[5m])) by (le)
+          ) > 10.0
+        for: 5m
+        labels:
+          severity: warning
+          component: location-intelligence
+        annotations:
+          summary: "High location intelligence query latency"
+          description: "Location intelligence p95 latency above 10 seconds"
+
+      - alert: GeomindOverpassAPIFailures
+        expr: |
+          sum(rate(geomind_overpass_requests_total{status="error"}[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: location-intelligence
+        annotations:
+          summary: "Overpass API failures"
+          description: "Overpass API error rate above 0.1/sec"
+
+      - alert: GeomindElevationAPIFailures
+        expr: |
+          sum(rate(geomind_elevation_requests_total{status="error"}[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: location-intelligence
+        annotations:
+          summary: "Elevation API failures"
+          description: "Elevation API error rate above 0.1/sec"
+
+      # ============================================================
+      # Vision/Camera Alerts
+      # ============================================================
+      - alert: GeomindCameraFetchFailures
+        expr: |
+          sum(rate(geomind_camera_fetch_total{status="error"}[5m])) by (camera_id)
+          / sum(rate(geomind_camera_fetch_total[5m])) by (camera_id)
+          > 0.2
+        for: 10m
+        labels:
+          severity: warning
+          component: camera
+        annotations:
+          summary: "Camera fetch failure rate high"
+          description: "Camera {{ $labels.camera_id }} fetch failure rate above 20%"
+
+      - alert: GeomindCameraStale
+        expr: |
+          time() - geomind_camera_last_fetch_timestamp_seconds > 300
+        for: 5m
+        labels:
+          severity: warning
+          component: camera
+        annotations:
+          summary: "Camera feed stale"
+          description: "Camera {{ $labels.camera_id }} hasn't fetched a frame in 5 minutes"
+
+      - alert: GeomindVisionInferenceHighLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(geomind_vision_inference_duration_seconds_bucket[5m])) by (le)
+          ) > 1.0
+        for: 5m
+        labels:
+          severity: warning
+          component: vision
+        annotations:
+          summary: "High vision inference latency"
+          description: "Vision model inference p95 latency above 1 second"
+
+      - alert: GeomindVisionQueueBacklog
+        expr: |
+          geomind_vision_queue_size / geomind_vision_queue_max_size > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          component: vision
+        annotations:
+          summary: "Vision processing queue backlog"
+          description: "Vision frame queue is above 80% capacity"
+
+      # ============================================================
+      # WebSocket Alerts
+      # ============================================================
+      - alert: GeomindWebSocketConnectionDrop
+        expr: |
+          geomind_ws_connections_active < 1
+        for: 5m
+        labels:
+          severity: info
+          component: websocket
+        annotations:
+          summary: "No active WebSocket connections"
+          description: "No clients connected to WebSocket for 5 minutes"
+
+      - alert: GeomindWebSocketHighConnectionCount
+        expr: |
+          geomind_ws_connections_active > 1000
+        for: 5m
+        labels:
+          severity: warning
+          component: websocket
+        annotations:
+          summary: "High WebSocket connection count"
+          description: "More than 1000 active WebSocket connections"
+
+      # ============================================================
+      # Rate Limiting Alerts
+      # ============================================================
+      - alert: GeomindRateLimitExceeded
+        expr: |
+          sum(rate(geomind_rate_limit_exceeded_total[5m])) > 10
+        for: 5m
+        labels:
+          severity: warning
+          component: rate-limit
+        annotations:
+          summary: "High rate limit exceeded count"
+          description: "More than 10 rate limit exceedances per second"
+
+      # ============================================================
+      # System Resource Alerts
+      # ============================================================
+      - alert: GeomindHighMemoryUsage
+        expr: |
+          (container_memory_usage_bytes / container_spec_memory_limit_bytes) > 0.85
+        for: 10m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High container memory usage"
+          description: "Container memory usage above 85% of limit"
+
+      - alert: GeomindHighCPUUsage
+        expr: |
+          (rate(container_cpu_usage_seconds_total[5m]) / container_spec_cpu_quota / container_spec_cpu_period) > 0.85
+        for: 10m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High container CPU usage"
+          description: "Container CPU usage above 85% of quota"
+
+      - alert: GeomindDiskSpaceLow
+        expr: |
+          (container_fs_usage_bytes / container_fs_limit_bytes) > 0.85
+        for: 10m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "Low disk space"
+          description: "Container filesystem usage above 85%"
+
+      # ============================================================
+      # Authentication Alerts
+      # ============================================================
+      - alert: GeomindAuthHighFailureRate
+        expr: |
+          sum(rate(geomind_auth_failures_total[5m])) /
+          (sum(rate(geomind_auth_failures_total[5m])) + sum(rate(geomind_auth_success_total[5m])))
+          > 0.3
+        for: 10m
+        labels:
+          severity: warning
+          component: auth
+        annotations:
+          summary: "High authentication failure rate"
+          description: "Authentication failure rate above 30%"
+
+      - alert: GeomindBruteForceAttempt
+        expr: |
+          sum(rate(geomind_auth_failures_total{reason="invalid_credentials"}[5m])) by (ip) > 20
+        for: 5m
+        labels:
+          severity: warning
+          component: auth
+        annotations:
+          summary: "Potential brute force attack"
+          description: "IP {{ $labels.ip }} has >20 failed login attempts in 5 minutes"
+
+      # ============================================================
+      # Business Logic Alerts
+      # ============================================================
+      - alert: GeomindWildfireDetectionSpike
+        expr: |
+          sum(rate(geomind_detections_total{class="fire",status="confirmed"}[1h])) > 10
+        for: 15m
+        labels:
+          severity: warning
+          component: detection
+        annotations:
+          summary: "Wildfire detection spike"
+          description: "More than 10 confirmed fire detections per hour (possible incident)"
+
+      - alert: GeomindNoDetectionsForPeriod
+        expr: |
+          sum(rate(geomind_detections_total[1h])) == 0
+        for: 2h
+        labels:
+          severity: info
+          component: detection
+        annotations:
+          summary: "No detections for extended period"
+          description: "No detections recorded for 2 hours (check camera feeds and model)"

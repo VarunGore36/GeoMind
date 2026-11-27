@@ -2,29 +2,89 @@
 # Copy to vision.yaml and modify as needed
 
 model:
-  type: "dummy"  # Options: "dummy", "yolo"
-  weights_path: "./models/yolov8n.pt"
-  device: "cpu"  # cpu, cuda, mps
+  # Model type - options:
+  #   "dummy"        - Random detections for testing (no weights needed)
+  #   "yolo"         - Ultralytics YOLO (requires ultralytics, .pt weights)
+  #   "wildfire"     - Wildfire YOLO (smoke=0, fire=1, custom .pt weights)
+  #   "onnx"         - ONNX Runtime (requires onnxruntime, .onnx weights)
+  #   "onnxruntime"  - Alias for "onnx"
+  type: "dummy"  # Options: "dummy", "yolo", "wildfire", "onnx", "onnxruntime"
+
+  # Path to model weights
+  #   For dummy: ignored (use "./models/dummy")
+  #   For yolo/wildfire: path to .pt file (e.g., "./models/yolov8n.pt", "./models/wildfire_yolov8n.pt")
+  #   For onnx: path to .onnx file (e.g., "./models/wildfire_yolov8n.onnx")
+  weights_path: "./models/wildfire_placeholder.onnx"
+
+  # Device to run inference on: cpu, cuda, mps
+  device: "cpu"
+
+  # Confidence threshold for initial detection (0.0 - 1.0)
   confidence_threshold: 0.25
+
+  # IoU threshold for Non-Maximum Suppression (0.0 - 1.0)
   iou_threshold: 0.45
+
+  # Input image size (square, 320-1280)
   input_size: 640
-  classes: []  # Empty = all classes. For custom models: [0, 1] for smoke/fire
+
+  # Classes to detect (empty = all classes)
+  #   For COCO models: specific class IDs (e.g., [0] for person)
+  #   For wildfire models: [0, 1] for smoke and fire
+  classes: [0, 1]  # smoke=0, fire=1
+
+  # Half precision (FP16) for faster inference on GPU
   half_precision: false
 
+  # Custom class names (for custom/ONNX models)
+  #   If not specified, uses model's built-in names
+  # class_names: ["smoke", "fire"]
+
 temporal:
+  # Minimum consecutive frames with detection to confirm
   min_consecutive_frames: 3
+
+  # Confidence threshold for a frame to count towards confirmation
   frame_confidence_threshold: 0.3
+
+  # Maximum time gap between frames (seconds) to consider consecutive
   max_frame_gap_seconds: 60.0
+
+  # Maximum frame ID gap between frames to consider consecutive
+  # (handles dropped frames from camera pipeline)
+  max_frame_gap_frames: 5
+
+  # Minimum total confidence sum across consecutive frames
   min_confidence_sum: 1.0
 
 database:
+  # Database URL for detection storage
   url: "sqlite+aiosqlite:///./vision_detections.db"
 
 queue:
+  # Maximum queue size for async frame processing
   max_size: 1000
+
+  # Number of worker tasks for parallel inference
   worker_count: 2
+
+  # Batch size for inference (1 = no batching)
   batch_size: 1
+
+  # Maximum time to wait for batch (ms)
   batch_timeout_ms: 100
 
+# Enable/disable vision engine
 enabled: true
+
+# Log level: DEBUG, INFO, WARNING, ERROR
 log_level: "INFO"
+
+# Camera feeds (optional - can also be configured via cameras.yaml)
+# feeds:
+#   - feed_url: "http://camera-ip:port/stream"
+#     camera_id: "camera_1"
+#     fetch_interval_seconds: 30
+#     timeout_seconds: 10
+#     max_retries: 3
+#     retry_delay_seconds: 5

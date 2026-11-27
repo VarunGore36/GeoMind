@@ -1,0 +1,1986 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "GeoMind Location Intelligence API",
+    "description": "GeoMind turns open geospatial data into structured location intelligence: building density, road density, vegetation coverage, water proximity, elevation, and wildfire detection \u2014 with full data provenance, authentication, and real-time streaming.",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Liveness probe",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Health Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Readiness probe (database + PostGIS)",
+        "operationId": "readiness_health_ready_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/location-intelligence": {
+      "get": {
+        "tags": [
+          "location intelligence"
+        ],
+        "summary": "Extract geospatial features around a point",
+        "description": "Returns building density, road density, vegetation coverage, water proximity, and elevation for a circular area. Data comes from OpenStreetMap (via Overpass) and open elevation datasets; the response includes full provenance and source metadata.",
+        "operationId": "location_intelligence_v1_location_intelligence_get",
+        "parameters": [
+          {
+            "name": "lat",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "maximum": 90,
+              "minimum": -90,
+              "description": "Latitude in WGS84 degrees.",
+              "title": "Lat"
+            },
+            "description": "Latitude in WGS84 degrees."
+          },
+          {
+            "name": "lon",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "maximum": 180,
+              "minimum": -180,
+              "description": "Longitude in WGS84 degrees.",
+              "title": "Lon"
+            },
+            "description": "Longitude in WGS84 degrees."
+          },
+          {
+            "name": "radius_m",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "maximum": 10000,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Analysis radius in metres (defaults to server config).",
+              "title": "Radius M"
+            },
+            "description": "Analysis radius in metres (defaults to server config)."
+          },
+          {
+            "name": "refresh",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Bypass the local coverage cache and refetch from Overpass.",
+              "default": false,
+              "title": "Refresh"
+            },
+            "description": "Bypass the local coverage cache and refetch from Overpass."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocationIntelligenceResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cameras/health": {
+      "get": {
+        "tags": [
+          "cameras"
+        ],
+        "summary": "Health Check",
+        "operationId": "health_check_api_v1_cameras_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cameras": {
+      "get": {
+        "tags": [
+          "cameras"
+        ],
+        "summary": "List Cameras",
+        "operationId": "list_cameras_api_v1_cameras_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "$ref": "#/components/schemas/CameraStatus"
+                  },
+                  "type": "object",
+                  "title": "Response List Cameras Api V1 Cameras Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cameras/{camera_id}": {
+      "get": {
+        "tags": [
+          "cameras"
+        ],
+        "summary": "Get Camera",
+        "operationId": "get_camera_api_v1_cameras__camera_id__get",
+        "parameters": [
+          {
+            "name": "camera_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Camera Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CameraStatus"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cameras/{camera_id}/latest": {
+      "get": {
+        "tags": [
+          "cameras"
+        ],
+        "summary": "Get Latest Meta",
+        "operationId": "get_latest_meta_api_v1_cameras__camera_id__latest_get",
+        "parameters": [
+          {
+            "name": "camera_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Camera Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FrameMetadata"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cameras/{camera_id}/latest/image": {
+      "get": {
+        "tags": [
+          "cameras"
+        ],
+        "summary": "Get Latest Image",
+        "operationId": "get_latest_image_api_v1_cameras__camera_id__latest_image_get",
+        "parameters": [
+          {
+            "name": "camera_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Camera Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cameras/{camera_id}/fetch": {
+      "post": {
+        "tags": [
+          "cameras"
+        ],
+        "summary": "Trigger Fetch",
+        "operationId": "trigger_fetch_api_v1_cameras__camera_id__fetch_post",
+        "parameters": [
+          {
+            "name": "camera_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Camera Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FrameMetadata"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": [
+          "authentication"
+        ],
+        "summary": "Login with username and password",
+        "description": "Authenticate user and return access + refresh tokens.",
+        "operationId": "login_api_v1_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_login_api_v1_auth_login_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "tags": [
+          "authentication"
+        ],
+        "summary": "Refresh access token",
+        "description": "Refresh access token using refresh token.",
+        "operationId": "refresh_token_api_v1_auth_refresh_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "tags": [
+          "authentication"
+        ],
+        "summary": "Logout (revoke refresh token)",
+        "description": "Revoke the current refresh token.",
+        "operationId": "logout_api_v1_auth_logout_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/users": {
+      "post": {
+        "tags": [
+          "authentication"
+        ],
+        "summary": "Create new user",
+        "description": "Create a new user (admin only).",
+        "operationId": "create_user_api_v1_auth_users_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyQuery": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "authentication"
+        ],
+        "summary": "List all users",
+        "description": "List all users (admin only).",
+        "operationId": "list_users_api_v1_auth_users_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyQuery": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/UserResponse"
+                  },
+                  "title": "Response List Users Api V1 Auth Users Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/users/me": {
+      "get": {
+        "tags": [
+          "authentication"
+        ],
+        "summary": "Get current user profile",
+        "description": "Get the current authenticated user's profile.",
+        "operationId": "get_current_user_profile_api_v1_auth_users_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyQuery": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "authentication"
+        ],
+        "summary": "Update current user profile",
+        "description": "Update the current user's profile.",
+        "operationId": "update_current_user_profile_api_v1_auth_users_me_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyQuery": []
+          }
+        ]
+      }
+    },
+    "/api/v1/auth/api-keys": {
+      "get": {
+        "tags": [
+          "authentication"
+        ],
+        "summary": "List user's API keys",
+        "description": "List all API keys for the current user.",
+        "operationId": "list_api_keys_api_v1_auth_api_keys_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyQuery": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "authentication"
+        ],
+        "summary": "Create API key",
+        "description": "Create a new API key for the current user.",
+        "operationId": "create_api_key_api_v1_auth_api_keys_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/APIKeyCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIKeyResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyQuery": []
+          }
+        ]
+      }
+    },
+    "/api/v1/auth/api-keys/{key_id}": {
+      "delete": {
+        "tags": [
+          "authentication"
+        ],
+        "summary": "Revoke API key",
+        "description": "Revoke (delete) an API key.",
+        "operationId": "revoke_api_key_api_v1_auth_api_keys__key_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyQuery": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "key_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/verify": {
+      "get": {
+        "tags": [
+          "authentication"
+        ],
+        "summary": "Verify token",
+        "description": "Verify if a token is valid.",
+        "operationId": "verify_token_endpoint_api_v1_auth_verify_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ws/stats": {
+      "get": {
+        "tags": [
+          "websocket"
+        ],
+        "summary": "Get Ws Stats",
+        "description": "Get WebSocket connection statistics.",
+        "operationId": "get_ws_stats_api_v1_ws_stats_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ws/channels": {
+      "get": {
+        "tags": [
+          "websocket"
+        ],
+        "summary": "List Channels",
+        "description": "List active WebSocket channels and subscriber counts.",
+        "operationId": "list_channels_api_v1_ws_channels_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ws/connections": {
+      "get": {
+        "tags": [
+          "websocket"
+        ],
+        "summary": "List Connections",
+        "description": "List active WebSocket connections (admin only).",
+        "operationId": "list_connections_api_v1_ws_connections_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/": {
+      "get": {
+        "tags": [
+          "meta"
+        ],
+        "summary": "Service metadata",
+        "operationId": "root__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Root  Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/metrics": {
+      "get": {
+        "tags": [
+          "metrics"
+        ],
+        "summary": "Prometheus metrics",
+        "operationId": "metrics_metrics_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "APIKeyCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "expires_in_days": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires In Days"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "APIKeyCreate",
+        "description": "API Key creation request."
+      },
+      "APIKeyResponse": {
+        "properties": {
+          "api_key": {
+            "type": "string",
+            "title": "Api Key"
+          },
+          "key_id": {
+            "type": "string",
+            "title": "Key Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "prefix": {
+            "type": "string",
+            "title": "Prefix"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "api_key",
+          "key_id",
+          "name",
+          "prefix",
+          "created_at"
+        ],
+        "title": "APIKeyResponse",
+        "description": "API Key creation response (only time the full key is shown)."
+      },
+      "Body_login_api_v1_auth_login_post": {
+        "properties": {
+          "grant_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^password$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grant Type"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "password": {
+            "type": "string",
+            "format": "password",
+            "title": "Password"
+          },
+          "scope": {
+            "type": "string",
+            "title": "Scope",
+            "default": ""
+          },
+          "client_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "client_secret": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "format": "password",
+            "title": "Client Secret"
+          }
+        },
+        "type": "object",
+        "required": [
+          "username",
+          "password"
+        ],
+        "title": "Body_login_api_v1_auth_login_post"
+      },
+      "BoundingBox": {
+        "properties": {
+          "min_lat": {
+            "type": "number",
+            "title": "Min Lat"
+          },
+          "min_lon": {
+            "type": "number",
+            "title": "Min Lon"
+          },
+          "max_lat": {
+            "type": "number",
+            "title": "Max Lat"
+          },
+          "max_lon": {
+            "type": "number",
+            "title": "Max Lon"
+          }
+        },
+        "type": "object",
+        "required": [
+          "min_lat",
+          "min_lon",
+          "max_lat",
+          "max_lon"
+        ],
+        "title": "BoundingBox"
+      },
+      "BuildingDensity": {
+        "properties": {
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value",
+            "description": "Building footprint area divided by analysis area (0-1)."
+          },
+          "unit": {
+            "type": "string",
+            "const": "ratio",
+            "title": "Unit",
+            "default": "ratio"
+          },
+          "building_count": {
+            "type": "integer",
+            "title": "Building Count"
+          },
+          "footprint_area_m2": {
+            "type": "number",
+            "title": "Footprint Area M2"
+          },
+          "definition": {
+            "type": "string",
+            "title": "Definition",
+            "default": "Building footprint area / analysis area"
+          }
+        },
+        "type": "object",
+        "required": [
+          "building_count",
+          "footprint_area_m2"
+        ],
+        "title": "BuildingDensity"
+      },
+      "CacheInfo": {
+        "properties": {
+          "hit": {
+            "type": "boolean",
+            "title": "Hit"
+          },
+          "fetched_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fetched At"
+          },
+          "ttl_s": {
+            "type": "integer",
+            "title": "Ttl S"
+          }
+        },
+        "type": "object",
+        "required": [
+          "hit",
+          "ttl_s"
+        ],
+        "title": "CacheInfo"
+      },
+      "CameraStatus": {
+        "properties": {
+          "camera_id": {
+            "type": "string",
+            "title": "Camera Id"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "last_fetch": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Fetch"
+          },
+          "last_success": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Success"
+          },
+          "consecutive_failures": {
+            "type": "integer",
+            "title": "Consecutive Failures",
+            "default": 0
+          },
+          "total_frames": {
+            "type": "integer",
+            "title": "Total Frames",
+            "default": 0
+          },
+          "total_errors": {
+            "type": "integer",
+            "title": "Total Errors",
+            "default": 0
+          },
+          "latest_frame": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FrameMetadata"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "camera_id",
+          "is_active"
+        ],
+        "title": "CameraStatus"
+      },
+      "DataSource": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "dataset": {
+            "type": "string",
+            "title": "Dataset"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "license": {
+            "type": "string",
+            "title": "License"
+          },
+          "attribution": {
+            "type": "string",
+            "title": "Attribution"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "dataset",
+          "provider",
+          "url",
+          "license",
+          "attribution"
+        ],
+        "title": "DataSource"
+      },
+      "ElevationInfo": {
+        "properties": {
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value",
+            "description": "Elevation at the query point, in metres."
+          },
+          "unit": {
+            "type": "string",
+            "const": "m",
+            "title": "Unit",
+            "default": "m"
+          },
+          "min_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min M"
+          },
+          "max_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max M"
+          },
+          "mean_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean M"
+          },
+          "samples": {
+            "type": "integer",
+            "title": "Samples",
+            "default": 0
+          },
+          "dataset": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dataset"
+          }
+        },
+        "type": "object",
+        "title": "ElevationInfo"
+      },
+      "Features": {
+        "properties": {
+          "building_density": {
+            "$ref": "#/components/schemas/BuildingDensity"
+          },
+          "road_density": {
+            "$ref": "#/components/schemas/RoadDensity"
+          },
+          "vegetation_coverage": {
+            "$ref": "#/components/schemas/VegetationCoverage"
+          },
+          "water_proximity": {
+            "$ref": "#/components/schemas/WaterProximity"
+          },
+          "elevation": {
+            "$ref": "#/components/schemas/ElevationInfo"
+          }
+        },
+        "type": "object",
+        "required": [
+          "building_density",
+          "road_density",
+          "vegetation_coverage",
+          "water_proximity",
+          "elevation"
+        ],
+        "title": "Features"
+      },
+      "FrameMetadata": {
+        "properties": {
+          "camera_id": {
+            "type": "string",
+            "title": "Camera Id"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          },
+          "frame_number": {
+            "type": "integer",
+            "title": "Frame Number"
+          },
+          "file_path": {
+            "type": "string",
+            "title": "File Path"
+          },
+          "file_size": {
+            "type": "integer",
+            "title": "File Size"
+          },
+          "width": {
+            "type": "integer",
+            "title": "Width"
+          },
+          "height": {
+            "type": "integer",
+            "title": "Height"
+          },
+          "content_hash": {
+            "type": "string",
+            "title": "Content Hash"
+          },
+          "fetch_duration_ms": {
+            "type": "number",
+            "title": "Fetch Duration Ms"
+          },
+          "status_code": {
+            "type": "integer",
+            "title": "Status Code"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "camera_id",
+          "timestamp",
+          "frame_number",
+          "file_path",
+          "file_size",
+          "width",
+          "height",
+          "content_hash",
+          "fetch_duration_ms",
+          "status_code"
+        ],
+        "title": "FrameMetadata"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "LocationIntelligenceResponse": {
+        "properties": {
+          "query": {
+            "$ref": "#/components/schemas/QueryInfo"
+          },
+          "features": {
+            "$ref": "#/components/schemas/Features"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/Provenance"
+          }
+        },
+        "type": "object",
+        "required": [
+          "query",
+          "features",
+          "provenance"
+        ],
+        "title": "LocationIntelligenceResponse"
+      },
+      "OsmQueryInfo": {
+        "properties": {
+          "endpoint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Endpoint"
+          },
+          "feature_count": {
+            "type": "integer",
+            "title": "Feature Count",
+            "default": 0
+          },
+          "fetched_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fetched At"
+          }
+        },
+        "type": "object",
+        "title": "OsmQueryInfo"
+      },
+      "Provenance": {
+        "properties": {
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/DataSource"
+            },
+            "type": "array",
+            "title": "Sources"
+          },
+          "cache": {
+            "$ref": "#/components/schemas/CacheInfo"
+          },
+          "osm": {
+            "$ref": "#/components/schemas/OsmQueryInfo"
+          }
+        },
+        "type": "object",
+        "required": [
+          "generated_at",
+          "sources",
+          "cache",
+          "osm"
+        ],
+        "title": "Provenance"
+      },
+      "QueryInfo": {
+        "properties": {
+          "latitude": {
+            "type": "number",
+            "title": "Latitude"
+          },
+          "longitude": {
+            "type": "number",
+            "title": "Longitude"
+          },
+          "radius_m": {
+            "type": "number",
+            "title": "Radius M"
+          },
+          "area_m2": {
+            "type": "number",
+            "title": "Area M2"
+          },
+          "bbox": {
+            "$ref": "#/components/schemas/BoundingBox"
+          }
+        },
+        "type": "object",
+        "required": [
+          "latitude",
+          "longitude",
+          "radius_m",
+          "area_m2",
+          "bbox"
+        ],
+        "title": "QueryInfo"
+      },
+      "RefreshTokenRequest": {
+        "properties": {
+          "refresh_token": {
+            "type": "string",
+            "title": "Refresh Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "refresh_token"
+        ],
+        "title": "RefreshTokenRequest",
+        "description": "Refresh token request payload."
+      },
+      "RoadDensity": {
+        "properties": {
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value",
+            "description": "Total road length per square kilometre of analysis area."
+          },
+          "unit": {
+            "type": "string",
+            "const": "km/km2",
+            "title": "Unit",
+            "default": "km/km2"
+          },
+          "road_length_m": {
+            "type": "number",
+            "title": "Road Length M"
+          },
+          "road_count": {
+            "type": "integer",
+            "title": "Road Count"
+          },
+          "definition": {
+            "type": "string",
+            "title": "Definition",
+            "default": "Total road length / analysis area"
+          }
+        },
+        "type": "object",
+        "required": [
+          "road_length_m",
+          "road_count"
+        ],
+        "title": "RoadDensity"
+      },
+      "TokenResponse": {
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "title": "Access Token"
+          },
+          "refresh_token": {
+            "type": "string",
+            "title": "Refresh Token"
+          },
+          "token_type": {
+            "type": "string",
+            "title": "Token Type",
+            "default": "bearer"
+          },
+          "expires_in": {
+            "type": "integer",
+            "title": "Expires In"
+          }
+        },
+        "type": "object",
+        "required": [
+          "access_token",
+          "refresh_token",
+          "expires_in"
+        ],
+        "title": "TokenResponse",
+        "description": "Token response payload."
+      },
+      "UserCreate": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 3,
+            "title": "Username"
+          },
+          "email": {
+            "type": "string",
+            "maxLength": 256,
+            "title": "Email"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 8,
+            "title": "Password"
+          },
+          "role": {
+            "$ref": "#/components/schemas/UserRole",
+            "default": "user"
+          }
+        },
+        "type": "object",
+        "required": [
+          "username",
+          "email",
+          "password"
+        ],
+        "title": "UserCreate",
+        "description": "User creation request."
+      },
+      "UserResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "role": {
+            "$ref": "#/components/schemas/UserRole"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "last_login": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Login"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "username",
+          "email",
+          "role",
+          "is_active",
+          "created_at"
+        ],
+        "title": "UserResponse",
+        "description": "User response model."
+      },
+      "UserRole": {
+        "type": "string",
+        "enum": [
+          "admin",
+          "user",
+          "viewer",
+          "service"
+        ],
+        "title": "UserRole",
+        "description": "User roles for RBAC."
+      },
+      "UserUpdate": {
+        "properties": {
+          "email": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 256
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRole"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          }
+        },
+        "type": "object",
+        "title": "UserUpdate",
+        "description": "User update request."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "VegetationCoverage": {
+        "properties": {
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value",
+            "description": "Vegetated land area divided by analysis area (0-1)."
+          },
+          "unit": {
+            "type": "string",
+            "const": "ratio",
+            "title": "Unit",
+            "default": "ratio"
+          },
+          "vegetation_area_m2": {
+            "type": "number",
+            "title": "Vegetation Area M2"
+          },
+          "feature_count": {
+            "type": "integer",
+            "title": "Feature Count"
+          },
+          "definition": {
+            "type": "string",
+            "title": "Definition",
+            "default": "Vegetated land area / analysis area (landuse=forest|meadow|grass|farmland|orchard|vineyard, natural=wood|scrub|grassland|heath|wetland, leisure=park|garden)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "vegetation_area_m2",
+          "feature_count"
+        ],
+        "title": "VegetationCoverage"
+      },
+      "WaterFeatureSummary": {
+        "properties": {
+          "osm_type": {
+            "type": "string",
+            "title": "Osm Type"
+          },
+          "osm_id": {
+            "type": "integer",
+            "title": "Osm Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "distance_m": {
+            "type": "number",
+            "title": "Distance M"
+          }
+        },
+        "type": "object",
+        "required": [
+          "osm_type",
+          "osm_id",
+          "distance_m"
+        ],
+        "title": "WaterFeatureSummary"
+      },
+      "WaterProximity": {
+        "properties": {
+          "nearest_distance_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nearest Distance M",
+            "description": "Distance to the nearest water feature, in metres."
+          },
+          "found_within_m": {
+            "type": "number",
+            "title": "Found Within M"
+          },
+          "water_coverage_ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Water Coverage Ratio",
+            "description": "Water area inside the analysis circle / analysis area (0-1)."
+          },
+          "nearest_feature": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WaterFeatureSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "definition": {
+            "type": "string",
+            "title": "Definition",
+            "default": "Distance from the query point to the nearest water feature within the search buffer, plus water coverage inside the analysis area"
+          }
+        },
+        "type": "object",
+        "required": [
+          "found_within_m"
+        ],
+        "title": "WaterProximity"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      },
+      "APIKeyHeader": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key"
+      },
+      "APIKeyQuery": {
+        "type": "apiKey",
+        "in": "query",
+        "name": "api_key"
+      }
+    }
+  }
+}

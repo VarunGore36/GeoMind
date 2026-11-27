@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GeoMind WebSocket Client</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; }
+        h1 { color: #333; }
+        .panel { border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin-bottom: 16px; background: #fafafa; }
+        .panel h2 { margin-top: 0; font-size: 1.1em; color: #444; }
+        label { display: block; margin-bottom: 4px; font-weight: 500; }
+        input, select, textarea { width: 100%; padding: 8px; margin-bottom: 12px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        button { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; margin-right: 8px; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        button:disabled { opacity: 0.6; cursor: not-allowed; }
+        .status { padding: 8px 12px; border-radius: 4px; margin-bottom: 16px; font-weight: 500; }
+        .status.connected { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .status.disconnected { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .status.connecting { background: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
+        .log { background: #1e1e1e; color: #d4d4d4; padding: 12px; border-radius: 4px; max-height: 400px; overflow-y: auto; font-family: 'Monaco', 'Menlo', monospace; font-size: 13px; line-height: 1.5; }
+        .log-entry { margin-bottom: 4px; border-bottom: 1px solid #333; padding-bottom: 4px; }
+        .log-entry:last-child { border-bottom: none; }
+        .log-time { color: #888; }
+        .log-detection { color: #ff6b6b; }
+        .log-confirmed { color: #69db7c; }
+        .log-pending { color: #ffd93d; }
+        .log-camera { color: #74b9ff; }
+        .log-error { color: #ff6b6b; }
+        .log-info { color: #a0a0a0; }
+        .log-ack { color: #90caf9; }
+        .channels-list { display: flex; flex-wrap: gap; gap: 8px; margin-top: 8px; }
+        .channel-badge { background: #e9ecef; padding: 4px 10px; border-radius: 12px; font-size: 12px; }
+        .channel-badge.active { background: #28a745; color: white; }
+        .filters-help { font-size: 12px; color: #666; margin-top: -8px; margin-bottom: 12px; }
+    </style>
+</head>
+<body>
+    <h1>🛰️ GeoMind WebSocket Client</h1>
+    <p>Real-time wildfire detection streaming client for GeoMind API</p>
+
+    <div class="panel">
+        <h2>Connection</h2>
+        <div>
+            <label>WebSocket URL</label>
+            <input type="text" id="wsUrl" value="ws://localhost:8000/ws/connect" placeholder="ws://localhost:8000/ws/connect">
+        </div>
+        <div>
+            <label>Authentication</label>
+            <select id="authType" onchange="toggleAuthFields()">
+                <option value="none">Anonymous (if allowed)</option>
+                <option value="token">JWT Token</option>
+                <option value="apikey">API Key</option>
+            </select>
+        </div>
+        <div id="tokenField" style="display:none;">
+            <label>Token / API Key</label>
+            <input type="password" id="authToken" placeholder="Enter JWT token or API key">
+        </div>
+        <div>
+            <button class="btn-primary" id="btnConnect" onclick="connect()">Connect</button>
+            <button class="btn-secondary" id="btnDisconnect" onclick="disconnect()" disabled>Disconnect</button>
+        </div>
+        <div id="status" class="status disconnected">Disconnected</div>
+    </div>
+
+    <div class="panel" id="subscriptionPanel" style="display:none;">
+        <h2>Subscriptions</h2>
+        <div>
+            <label>Channels</label>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
+                <label style="display:flex; align-items:center; gap:4px; margin-bottom:0;">
+                    <input type="checkbox" id="chDetections" checked> detections
+                </label>
+                <label style="display:flex; align-items:center; gap:4px; margin-bottom:0;">
+                    <input type="checkbox" id="chConfirmed" checked> detections:confirmed
+                </label>
+                <label style="display:flex; align-items:center; gap:4px; margin-bottom:0;">
+                    <input type="checkbox" id="chPending" checked> detections:pending
+                </label>
+                <label style="display:flex; align-items:center; gap:4px; margin-bottom:0;">
+                    <input type="checkbox" id="chCameras" checked> cameras
+                </label>
+                <label style="display:flex; align-items:center; gap:4px; margin-bottom:0;">
+                    <input type="checkbox" id="chSystem"> system
+                </label>
+            </div>
+        </div>
+        <div>
+            <label>Filters (JSON)</label>
+            <textarea id="filters" rows="4" placeholder='{"camera_id": "cam_1", "min_confidence": 0.5}'></textarea>
+            <div class="filters-help">
+                Available filters: camera_id (string), class_name (string), min_confidence (number), max_confidence (number)
+            </div>
+        </div>
+        <div>
+            <button class="btn-primary" id="btnSubscribe" onclick="subscribe()">Subscribe</button>
+            <button class="btn-secondary" id="btnUnsubscribe" onclick="unsubscribe()">Unsubscribe All</button>
+        </div>
+        <div id="activeChannels" class="channels-list"></div>
+    </div>
+
+    <div class="panel">
+        <h2>Event Log</h2>
+        <div style="display:flex; gap:8px; margin-bottom:8px;">
+            <button class="btn-secondary" onclick="clearLog()">Clear Log</button>
+            <label style="display:flex; align-items:center; gap:4px; margin-bottom:0;">
+                <input type="checkbox" id="autoScroll" checked> Auto-scroll
+            </label>
+        </div>
+        <div id="log" class="log"></div>
+    </div>
+
+    <script>
+        // Include the GeomindWSClient class (inlined for standalone HTML)
+        class GeomindWSClient {
+            constructor(options = {}) {
+                this.url = options.url || 'ws://localhost:8000/ws/connect';
+                this.token = options.token;
+                this.apiKey = options.apiKey;
+                this.channels = options.channels || ['detections', 'detections:confirmed', 'cameras'];
+                this.filters = options.filters || {};
+                this.heartbeatInterval = options.heartbeatInterval || 30000;
+
+                this.ws = null;
+                this.running = false;
+                this.messageId = 0;
+                this.subscribedChannels = new Set();
+                this.heartbeatTimer = null;
+                this.reconnectAttempts = 0;
+                this.maxReconnectAttempts = 5;
+                this.reconnectDelay = 1000;
+
+                // Event handlers
+                this.onOpen = null;
+                this.onClose = null;
+                this.onError = null;
+                this.onDetection = null;
+                this.onDetectionConfirmed = null;
+                this.onDetectionPending = null;
+                this.onCameraStatus = null;
+                this.onMessage = null;
+                this.onSubscribed = null;
+                this.onUnsubscribed = null;
+            }
+
+            _buildUrl() {
+                const params = new URLSearchParams();
+                if (this.token) params.set('token', this.token);
+                else if (this.apiKey) params.set('token', this.apiKey);
+                const query = params.toString();
+                return query ? `${this.url}?${query}` : this.url;
+            }
+
+            _nextId() {
+                this.messageId++;
+                return `msg_${this.messageId}`;
+            }
+
+            _send(message) {
+                if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                    this.ws.send(JSON.stringify(message));
+                } else {
+                    console.warn('WebSocket not connected, message not sent:', message);
+                }
+            }
+
+            async connect() {
+                const wsUrl = this._buildUrl();
+                this._log('info', `Connecting to ${wsUrl}`);
+
+                return new Promise((resolve, reject) => {
+                    this.ws = new WebSocket(wsUrl);
+
+                    this.ws.onopen = () => {
+                        this._log('info', 'Connected successfully');
+                        this.reconnectAttempts = 0;
+                        this.running = true;
+                        this._startHeartbeat();
+                        this.subscribe(this.channels, this.filters);
+                        if (this.onOpen) this.onOpen();
+                        resolve();
+                    };
+
+                    this.ws.onclose = (event) => {
+                        this._log('info', `Disconnected: ${event.code} ${event.reason}`);
+                        this._stopHeartbeat();
+                        this.running = false;
+                        if (this.onClose) this.onClose(event);
+
+                        if (this.running && this.reconnectAttempts < this.maxReconnectAttempts) {
+                            this.reconnectAttempts++;
+                            const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
+                            this._log('info', `Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+                            setTimeout(() => this.connect(), delay);
+                        }
+                    };
+
+                    this.ws.onerror = (error) => {
+                        this._log('error', 'WebSocket error: ' + error.message);
+                        if (this.onError) this.onError(error);
+                        reject(error);
+                    };
+
+                    this.ws.onmessage = (event) => {
+                        try {
+                            const message = JSON.parse(event.data);
+                            this._handleMessage(message);
+                        } catch (e) {
+                            this._log('warn', 'Invalid JSON message: ' + event.data);
+                        }
+                    };
+                });
+            }
+
+            disconnect() {
+                this.running = false;
+                this._stopHeartbeat();
+                if (this.ws) {
+                    this.ws.close(1000, 'Client disconnect');
+                    this.ws = null;
+                }
+            }
+
+            _startHeartbeat() {
+                this._stopHeartbeat();
+                this.heartbeatTimer = setInterval(() => this.heartbeat(), this.heartbeatInterval);
+            }
+
+            _stopHeartbeat() {
+                if (this.heartbeatTimer) {
+                    clearInterval(this.heartbeatTimer);
+                    this.heartbeatTimer = null;
+                }
+            }
+
+            subscribe(channels, filters = {}) {
+                const message = {
+                    type: 'subscribe',
+                    id: this._nextId(),
+                    timestamp: new Date().toISOString(),
+                    channels,
+                    filters,
+                };
+                this._send(message);
+                this._log('info', `Subscribed to: ${channels.join(', ')}`);
+            }
+
+            unsubscribe(channels) {
+                const message = {
+                    type: 'unsubscribe',
+                    id: this._nextId(),
+                    timestamp: new Date().toISOString(),
+                    channels,
+                };
+                this._send(message);
+                this._log('info', `Unsubscribed from: ${channels.join(', ')}`);
+            }
+
+            heartbeat(payload = {}) {
+                const message = {
+                    type: 'heartbeat',
+                    id: this._nextId(),
+                    timestamp: new Date().toISOString(),
+                    payload,
+                };
+                this._send(message);
+            }
+
+            _handleMessage(message) {
+                const type = message.type;
+                if (this.onMessage) this.onMessage(message);
+
+                switch (type) {
+                    case 'detection': this._handleDetection(message); break;
+                    case 'detection_confirmed': this._handleDetectionConfirmed(message); break;
+                    case 'detection_pending': this._handleDetectionPending(message); break;
+                    case 'camera_status': this._handleCameraStatus(message); break;
+                    case 'error': this._handleError(message); break;
+                    case 'ack': this._handleAck(message); break;
+                    case 'subscribed': this._handleSubscribed(message); break;
+                    case 'unsubscribed': this._handleUnsubscribed(message); break;
+                    default: this._log('warn', `Unknown message type: ${type}`);
+                }
+            }
+
+            _handleDetection(msg) {
+                this._log('detection',
+                    `🔥 DETECTION: camera=${msg.camera_id} class=${msg.class_name} ` +
+                    `conf=${msg.confidence.toFixed(2)} status=${msg.status} ` +
+                    `bbox=[${Object.values(msg.bbox).map(v => v.toFixed(3)).join(', ')}] ` +
+                    `frame=${msg.frame_id} event=${msg.event_id}`);
+                if (this.onDetection) this.onDetection(msg);
+            }
+
+            _handleDetectionConfirmed(msg) {
+                this._log('confirmed',
+                    `✅ CONFIRMED: camera=${msg.camera_id} class=${msg.class_name} ` +
+                    `max_conf=${msg.max_confidence.toFixed(2)} avg_conf=${msg.avg_confidence.toFixed(2)} ` +
+                    `frames=${msg.frame_count} event=${msg.event_id}`);
+                if (this.onDetectionConfirmed) this.onDetectionConfirmed(msg);
+            }
+
+            _handleDetectionPending(msg) {
+                this._log('pending',
+                    `⏳ PENDING: camera=${msg.camera_id} class=${msg.class_name} ` +
+                    `conf=${msg.confidence.toFixed(2)} frame=${msg.frame_id} event=${msg.event_id}`);
+                if (this.onDetectionPending) this.onDetectionPending(msg);
+            }
+
+            _handleCameraStatus(msg) {
+                this._log('camera',
+                    `📷 CAMERA: ${msg.camera_id} status=${msg.status} ` +
+                    `frames=${msg.total_frames} errors=${msg.total_errors} ` +
+                    `fps=${msg.fps ?? 'N/A'}`);
+                if (this.onCameraStatus) this.onCameraStatus(msg);
+            }
+
+            _handleError(msg) {
+                this._log('error', `❌ ERROR: ${msg.code} - ${msg.message}`);
+            }
+
+            _handleAck(msg) {
+                if (!msg.success) {
+                    this._log('warn', `⚠️ ACK failed: ${msg.message || 'Unknown error'}`);
+                } else {
+                    this._log('ack', `✓ ACK: ${msg.message || 'OK'}`);
+                }
+            }
+
+            _handleSubscribed(msg) {
+                (msg.channels || []).forEach(ch => this.subscribedChannels.add(ch));
+                this._updateChannelsUI();
+                this._log('info', `✓ Subscribed: ${(msg.channels || []).join(', ')}`);
+                if (this.onSubscribed) this.onSubscribed(msg);
+            }
+
+            _handleUnsubscribed(msg) {
+                (msg.channels || []).forEach(ch => this.subscribedChannels.delete(ch));
+                this._updateChannelsUI();
+                this._log('info', `✓ Unsubscribed: ${(msg.channels || []).join(', ')}`);
+                if (this.onUnsubscribed) this.onUnsubscribed(msg);
+            }
+
+            // UI callback (set by HTML)
+            _log = () => {};
+            _updateChannelsUI = () => {};
+        }
+
+        // UI Logic
+        let client = null;
+
+        function updateStatus(text, className) {
+            const el = document.getElementById('status');
+            el.textContent = text;
+            el.className = 'status ' + className;
+        }
+
+        function toggleAuthFields() {
+            const type = document.getElementById('authType').value;
+            const field = document.getElementById('tokenField');
+            field.style.display = type === 'none' ? 'none' : 'block';
+        }
+
+        function connect() {
+            const url = document.getElementById('wsUrl').value;
+            const authType = document.getElementById('authType').value;
+            const token = document.getElementById('authToken').value;
+
+            const options = { url };
+            if (authType === 'token') options.token = token;
+            else if (authType === 'apikey') options.apiKey = token;
+
+            client = new GeomindWSClient(options);
+
+            client._log = (level, text) => addLogEntry(level, text);
+            client._updateChannelsUI = updateActiveChannels;
+
+            client.onOpen = () => {
+                updateStatus('Connected', 'connected');
+                document.getElementById('subscriptionPanel').style.display = 'block';
+                document.getElementById('btnConnect').disabled = true;
+                document.getElementById('btnDisconnect').disabled = false;
+            };
+
+            client.onClose = () => {
+                updateStatus('Disconnected', 'disconnected');
+                document.getElementById('subscriptionPanel').style.display = 'none';
+                document.getElementById('btnConnect').disabled = false;
+                document.getElementById('btnDisconnect').disabled = true;
+            };
+
+            client.onError = (err) => {
+                updateStatus('Error', 'disconnected');
+            };
+
+            updateStatus('Connecting...', 'connecting');
+            client.connect().catch(err => {
+                addLogEntry('error', 'Connection failed: ' + err.message);
+                updateStatus('Failed', 'disconnected');
+            });
+        }
+
+        function disconnect() {
+            if (client) {
+                client.disconnect();
+                client = null;
+            }
+        }
+
+        function subscribe() {
+            if (!client) return;
+
+            const channels = [];
+            if (document.getElementById('chDetections').checked) channels.push('detections');
+            if (document.getElementById('chConfirmed').checked) channels.push('detections:confirmed');
+            if (document.getElementById('chPending').checked) channels.push('detections:pending');
+            if (document.getElementById('chCameras').checked) channels.push('cameras');
+            if (document.getElementById('chSystem').checked) channels.push('system');
+
+            let filters = {};
+            try {
+                const filterText = document.getElementById('filters').value.trim();
+                if (filterText) filters = JSON.parse(filterText);
+            } catch (e) {
+                addLogEntry('error', 'Invalid JSON in filters: ' + e.message);
+                return;
+            }
+
+            client.channels = channels;
+            client.filters = filters;
+            client.subscribe(channels, filters);
+        }
+
+        function unsubscribe() {
+            if (!client) return;
+            client.unsubscribe([...client.subscribedChannels]);
+        }
+
+        function updateActiveChannels() {
+            const container = document.getElementById('activeChannels');
+            container.innerHTML = '';
+            client.subscribedChannels.forEach(ch => {
+                const badge = document.createElement('span');
+                badge.className = 'channel-badge active';
+                badge.textContent = ch;
+                container.appendChild(badge);
+            });
+        }
+
+        function addLogEntry(level, text) {
+            const log = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry log-' + level;
+            const time = new Date().toLocaleTimeString();
+            entry.innerHTML = `<span class="log-time">[${time}]</span> ${escapeHtml(text)}`;
+            log.appendChild(entry);
+
+            if (document.getElementById('autoScroll').checked) {
+                log.scrollTop = log.scrollHeight;
+            }
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>

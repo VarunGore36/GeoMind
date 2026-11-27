@@ -1,0 +1,36 @@
+# Wildfire YOLOv8n Model Configuration
+# Compatible with GeoMind Vision Engine
+
+model:
+  type: "onnx"                    # onnx, onnxruntime, wildfire, yolo, dummy
+  weights_path: "./models/wildfire_yolov8n.onnx"
+  device: "cpu"                   # cpu, cuda, mps
+  confidence_threshold: 0.25      # Initial detection confidence
+  iou_threshold: 0.45             # NMS IoU threshold
+  input_size: 640                 # Square input (320-1280)
+  half_precision: false           # FP16 inference (GPU only)
+  classes: [0, 1]                 # 0=smoke, 1=fire
+  class_names: ["smoke", "fire"]  # Custom names (optional)
+
+# Temporal validation for reducing false positives
+temporal:
+  min_consecutive_frames: 3       # Frames needed for confirmation
+  frame_confidence_threshold: 0.3 # Min confidence per frame
+  max_frame_gap_seconds: 60.0     # Max time between frames
+  max_frame_gap_frames: 5         # Max frame ID gap (handles drops)
+  min_confidence_sum: 1.0         # Sum of confidences across frames
+
+# Vision engine settings
+engine:
+  queue_max_size: 1000            # Frame queue capacity
+  worker_count: 2                 # Parallel inference workers
+  batch_size: 1                   # Batch inference (1=disabled)
+  batch_timeout_ms: 100           # Max wait for batch
+
+# Database
+database:
+  url: "sqlite+aiosqlite:///./vision_detections.db"
+
+# Logging
+log_level: "INFO"
+enabled: true

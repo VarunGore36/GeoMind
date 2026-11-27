@@ -25,7 +25,9 @@ services:
     command: redis-server --appendonly yes
 
   api:
-    build: .
+    build:
+      context: .
+      target: runtime
     environment:
       GEOMIND_DATABASE_URL: postgresql+asyncpg://geomind:geomind@db:5432/geomind
       GEOMIND_CAM_REDIS__URL: redis://redis:6379/0
@@ -40,6 +42,33 @@ services:
     volumes:
       - ./frames:/app/frames
       - ./cameras.yaml:/app/cameras.yaml:ro
+    restart: unless-stopped
+
+  # Development service with hot reload
+  api-dev:
+    build:
+      context: .
+      target: dev
+    environment:
+      GEOMIND_DATABASE_URL: postgresql+asyncpg://geomind:geomind@db:5432/geomind
+      GEOMIND_CAM_REDIS__URL: redis://redis:6379/0
+      GEOMIND_CAM_REDIS__ENABLED: "true"
+      GEOMIND_LOG_LEVEL: "DEBUG"
+    ports:
+      - "8001:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - ./src:/app/src
+      - ./frames:/app/frames
+      - ./cameras.yaml:/app/cameras.yaml:ro
+      - ./vision.yaml:/app/vision.yaml:ro
+      - ./auth.yaml:/app/auth.yaml:ro
+      - ./metrics.yaml:/app/metrics.yaml:ro
+    command: uvicorn geomind.main:app --host 0.0.0.0 --port 8000 --reload
 
 volumes:
   pgdata:

@@ -1,16 +1,76 @@
+# Git
 .git
 .gitignore
-.venv
-venv
+
+# Python
 __pycache__
 *.pyc
+*.pyo
+*.pyd
+.Python
+*.so
 .pytest_cache
-.ruff_cache
-.mypy_cache
 .coverage
 htmlcov
-tests
+.tox
+.mypy_cache
+.ruff_cache
+
+# Virtual environments
+venv
+env
 .env
-.env.local
-Dockerfile
-docker-compose.yml
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Test outputs
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Data files
+data/
+frames/
+models/*.onnx
+!models/wildfire_placeholder.onnx
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# CI/CD
+.github/
+
+# Scripts (not needed in runtime)
+scripts/
+
+# Examples
+examples/
+
+# OpenAPI specs
+openapi.json
+openapi.yaml
+
+# Alembic migrations (needed for startup migrations)
+# alembic/
+# alembic.ini
+
+# Local config files
+*.yaml
+!cameras.yaml.example
+!vision.yaml.example
+!auth.yaml.example
+!metrics.yaml.example
